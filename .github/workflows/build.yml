@@ -1,12 +1,11 @@
-name: Build Bauantibotsentryproxy
+name: Build Bauantibotsentryptoxy
 on:
   push:
     branches:
       - master
-      - actions #temp
+      - v3
   pull_request:
-    branches:
-      - master
+    types: [opened, synchronize, reopened]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,6 +20,8 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: 'adopt'
+      - name: CHMOD
+        run: chmod 777 bauantibotsentryproxy
       - name: patch
         run: |
           git config --global user.email "no-reply@github.com"
@@ -28,3 +29,8 @@ jobs:
           ./bauantibotsentryproxy p
       - name: build
         run: mvn clean install javadoc:javadoc -B
+      - name: Upload a Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Bauantibotsentryproxy${{ matrix.java }}
+          path: Waterfall-Proxy/bootstrap/target/Bauantibotsentry-proxy.jar
