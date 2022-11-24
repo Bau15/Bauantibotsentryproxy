@@ -15,4 +15,4 @@ Para compilar Bauantibotsentryproxy, necesitas JDK8, git, bash, maven y una cone
 
 Clona este repositorio, usa el comando `./bauantibotsentryproxy b` de *bash*, consigue el jar desde Waterfall-Proxy/bootstrap/target/
 
-## https://proxy.bautista.tk/
+## https://proxy.bau.ar
