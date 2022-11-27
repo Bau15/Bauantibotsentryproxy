@@ -57,7 +57,7 @@ index c0d37142..bdeab0dc 100644
 -        if ( !ctx.channel().isActive() )
 -        {
 -            in.skipBytes( in.readableBytes() );
-+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
++    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
 +        if (!ctx.channel().isActive()) {
 +            in.clear();
              return;
