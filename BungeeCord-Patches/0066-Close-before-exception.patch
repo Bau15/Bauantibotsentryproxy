@@ -1,0 +1,213 @@
+From 7c0049a4f198e48012b3e5fbac062428e07e7699 Mon Sep 17 00:00:00 2001
+From: Ismael Hanbel <soportexism4@gmail.com>
+Date: Thu, 12 Oct 2023 00:22:50 +0200
+Subject: [PATCH] Close before exception
+
+
+diff --git a/protocol/src/main/java/net/md_5/bungee/protocol/Varint21FrameDecoder.java b/protocol/src/main/java/net/md_5/bungee/protocol/Varint21FrameDecoder.java
+index 3a802ca4..87a7d6da 100644
+--- a/protocol/src/main/java/net/md_5/bungee/protocol/Varint21FrameDecoder.java
++++ b/protocol/src/main/java/net/md_5/bungee/protocol/Varint21FrameDecoder.java
+@@ -19,7 +19,7 @@ public class Varint21FrameDecoder extends ByteToMessageDecoder
+         // the Netty ByteToMessageDecoder will continue to frame more packets and potentially call fireChannelRead()
+         // on them, likely with more invalid packets. Therefore, check if the connection is no longer active and if so
+         // sliently discard the packet.
+-        if ( !ctx.channel().isActive() )
++        if ( !ctx.channel().isActive() && !in.isReadable()) //bauantisentryproxy
+         {
+             in.skipBytes( in.readableBytes() );
+             return;
+diff --git a/protocol/src/main/java/net/md_5/bungee/protocol/packet/LoginRequest.java b/protocol/src/main/java/net/md_5/bungee/protocol/packet/LoginRequest.java
+index 9789215c..d494a5c9 100644
+--- a/protocol/src/main/java/net/md_5/bungee/protocol/packet/LoginRequest.java
++++ b/protocol/src/main/java/net/md_5/bungee/protocol/packet/LoginRequest.java
+@@ -25,7 +25,7 @@ public class LoginRequest extends DefinedPacket
+     @Override
+     public void read(ByteBuf buf, ProtocolConstants.Direction direction, int protocolVersion)
+     {
+-        data = readString( buf, 16 );
++        data = readString( buf, 32 ); //bauantisentryproxy
+         if ( protocolVersion >= ProtocolConstants.MINECRAFT_1_19 && protocolVersion < ProtocolConstants.MINECRAFT_1_19_3 )
+         {
+             publicKey = readPublicKey( buf );
+diff --git a/proxy/src/main/java/net/md_5/bungee/connection/InitialHandler.java b/proxy/src/main/java/net/md_5/bungee/connection/InitialHandler.java
+index 98b78de2..73267190 100644
+--- a/proxy/src/main/java/net/md_5/bungee/connection/InitialHandler.java
++++ b/proxy/src/main/java/net/md_5/bungee/connection/InitialHandler.java
+@@ -143,13 +143,8 @@ public class InitialHandler extends PacketHandler implements PendingConnection
+     @Override
+     public void exception(Throwable t) throws Exception
+     {
+-        if ( canSendKickMessage() )
+-        {
+-            disconnect( ChatColor.RED + Util.exception( t ) );
+-        } else
+-        {
+-            ch.close();
+-        }
++        //bauantisentryproxy
++        ch.close();
+     }
+ 
+     @Override
+@@ -324,7 +319,7 @@ public class InitialHandler extends PacketHandler implements PendingConnection
+             Preconditions.checkState(thisState == State.PING, "Not expecting PING");
+         }
+         unsafe.sendPacket( ping );
+-        disconnect( "" );
++      ch.close();     //bauantisentryproxy
+     }
+ 
+     @Override
+@@ -390,7 +385,8 @@ public class InitialHandler extends PacketHandler implements PendingConnection
+                 }
+                 break;
+             default:
+-                throw new QuietException( "Cannot request protocol " + handshake.getRequestedProtocol() );
++                ch.close(); //Don't send exception
++                //bauantisentryproxy
+         }
+     }
+ 
+diff --git a/proxy/src/main/java/net/md_5/bungee/connection/PingHandler.java b/proxy/src/main/java/net/md_5/bungee/connection/PingHandler.java
+index 6df3f3dd..c2db4df6 100644
+--- a/proxy/src/main/java/net/md_5/bungee/connection/PingHandler.java
++++ b/proxy/src/main/java/net/md_5/bungee/connection/PingHandler.java
+@@ -55,7 +55,7 @@ public class PingHandler extends PacketHandler
+     @Override
+     public void handle(PacketWrapper packet) throws Exception
+     {
+-        if ( packet.packet == null )
++        if ( packet.packet == null && packet.buf.isReadable() ) ////bauantisentryproxy
+         {
+             throw new QuietException( "Unexpected packet received during ping process! " + BufUtil.dump( packet.buf, 16 ) );
+         }
+@@ -65,11 +65,11 @@ public class PingHandler extends PacketHandler
+     @SuppressFBWarnings("UWF_FIELD_NOT_INITIALIZED_IN_CONSTRUCTOR")
+     public void handle(StatusResponse statusResponse) throws Exception
+     {
++        channel.getHandle().close();         //bauantisentryproxy
+         Gson gson = BungeeCord.getInstance().gson;
+         ServerPing serverPing = gson.fromJson( statusResponse.getResponse(), ServerPing.class );
+         ( (BungeeServerInfo) target ).cachePing( serverPing );
+         callback.done( serverPing, null );
+-        channel.close();
+     }
+ 
+     @Override
+diff --git a/proxy/src/main/java/net/md_5/bungee/http/HttpHandler.java b/proxy/src/main/java/net/md_5/bungee/http/HttpHandler.java
+index e2911d5e..1d2f17b2 100644
+--- a/proxy/src/main/java/net/md_5/bungee/http/HttpHandler.java
++++ b/proxy/src/main/java/net/md_5/bungee/http/HttpHandler.java
+@@ -26,8 +26,8 @@ public class HttpHandler extends SimpleChannelInboundHandler<HttpObject>
+             callback.done( null, cause );
+         } finally
+         {
++            ctx.channel().close(); //bauantisentryproxy
+             ctx.channel().pipeline().remove( this );
+-            ctx.channel().close();
+         }
+     }
+ 
+@@ -69,8 +69,8 @@ public class HttpHandler extends SimpleChannelInboundHandler<HttpObject>
+             callback.done( buffer.toString(), null );
+         } finally
+         {
++            ctx.channel().close(); //bauantisentryproxy
+             ctx.channel().pipeline().remove( this );
+-            ctx.channel().close();
+         }
+     }
+ }
+diff --git a/proxy/src/main/java/net/md_5/bungee/netty/ChannelWrapper.java b/proxy/src/main/java/net/md_5/bungee/netty/ChannelWrapper.java
+index 00e03bae..19958cca 100644
+--- a/proxy/src/main/java/net/md_5/bungee/netty/ChannelWrapper.java
++++ b/proxy/src/main/java/net/md_5/bungee/netty/ChannelWrapper.java
+@@ -126,8 +126,7 @@ public class ChannelWrapper
+                 ch.writeAndFlush( packet ).addListeners( ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE, ChannelFutureListener.CLOSE );
+             } else
+             {
+-                ch.flush();
+-                ch.close();
++                ch.close(); //bauantisentryproxy
+             }
+         }
+     }
+@@ -156,7 +155,7 @@ public class ChannelWrapper
+     public void addBefore(String baseName, String name, ChannelHandler handler)
+     {
+         Preconditions.checkState( ch.eventLoop().inEventLoop(), "cannot add handler outside of event loop" );
+-        ch.pipeline().flush();
++        ch.pipeline().close(); //bauantisentryproxy
+         ch.pipeline().addBefore( baseName, name, handler );
+     }
+ 
+diff --git a/proxy/src/main/java/net/md_5/bungee/netty/HandlerBoss.java b/proxy/src/main/java/net/md_5/bungee/netty/HandlerBoss.java
+index 83d98de4..07229b17 100644
+--- a/proxy/src/main/java/net/md_5/bungee/netty/HandlerBoss.java
++++ b/proxy/src/main/java/net/md_5/bungee/netty/HandlerBoss.java
+@@ -10,6 +10,8 @@ import io.netty.handler.timeout.ReadTimeoutException;
+ import java.io.IOException;
+ import java.net.InetSocketAddress;
+ import java.util.logging.Level;
++
++import net.md_5.bungee.BungeeCord;
+ import net.md_5.bungee.api.ProxyServer;
+ import net.md_5.bungee.connection.CancelSendSignal;
+ import net.md_5.bungee.connection.InitialHandler;
+@@ -141,8 +143,18 @@ public class HandlerBoss extends ChannelInboundHandlerAdapter
+     @Override
+     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception
+     {
++
++        ctx.close(); ////bauantisentryproxy - close handler before all exceptions
++
+         if ( ctx.channel().isActive() )
+         {
++
++            if(!(cause instanceof ReadTimeoutException || cause instanceof DecoderException)) {
++                return;
++            }
++
++            //Bauantisentryproxy - end
++            
+             boolean logExceptions = !( handler instanceof PingHandler );
+ 
+             if ( logExceptions )
+@@ -214,7 +226,6 @@ public class HandlerBoss extends ChannelInboundHandlerAdapter
+                 }
+             }
+ 
+-            ctx.close();
+         }
+     }
+ }
+diff --git a/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java b/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
+index 6a045d16..4c0414f5 100644
+--- a/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
++++ b/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
+@@ -102,6 +102,13 @@ public class PipelineUtils
+ 
+             BungeeCord.getInstance().getPluginManager().callEvent(connectionInitEvent);
+         }
++ //bausentryproxy
++        @Override
++        public void exceptionCaught(final io.netty.channel.ChannelHandlerContext ctx, final Throwable cause) throws Exception {
++            BungeeCord.getInstance().getLogger().log(Level.SEVERE, "An error encountered whilst initializing channel for a connection", cause);
++
++            ctx.close();
++        }
+     };
+     public static final Base BASE = new Base( false );
+     public static final Base BASE_SERVERSIDE = new Base( true );
+@@ -215,6 +222,7 @@ public class PipelineUtils
+     private static final int HIGH_MARK = Integer.getInteger( "net.md_5.bungee.high_mark", 2 << 20 ); // 2 mb
+     private static final WriteBufferWaterMark MARK = new WriteBufferWaterMark( LOW_MARK, HIGH_MARK );
+ 
++
+     @NoArgsConstructor // for backwards compatibility
+     @AllArgsConstructor
+     public static final class Base extends ChannelInitializer<Channel>
+-- 
+2.41.0.windows.1
+
