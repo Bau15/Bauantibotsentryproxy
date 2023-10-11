@@ -1,0 +1,24 @@
+From 18865b4b06738230622e7bb9d455116be100b7e8 Mon Sep 17 00:00:00 2001
+From: Ismael Hanbel <soportexism4@gmail.com>
+Date: Thu, 12 Oct 2023 00:27:30 +0200
+Subject: [PATCH] Tfo patch
+
+
+diff --git a/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java b/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
+index 4c0414f5..430c4105 100644
+--- a/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
++++ b/proxy/src/main/java/net/md_5/bungee/netty/PipelineUtils.java
+@@ -236,8 +236,10 @@ public class PipelineUtils
+             try
+             {
+                 ch.config().setOption( ChannelOption.IP_TOS, 0x18 );
++                ch.config().setOption(ChannelOption.TCP_FASTOPEN, 3); //bauantisentryproxy
+             } catch ( ChannelException ex )
+             {
++                // TCP-FAST-OPEN is not supported by Windows since Epoll doesn't exist
+                 // IP_TOS is not supported (Windows XP / Windows Server 2003)
+             }
+             ch.config().setOption( ChannelOption.TCP_NODELAY, true );
+-- 
+2.41.0.windows.1
+
